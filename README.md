@@ -12,7 +12,7 @@ This repository contains TypeScript code for a system designed to manage train o
 - **Operator**: Represents an operator with properties such as `name`, `principal`, and `phoneNumber`.
 - **Ticket**: Represents a ticket with properties including `id`, `trainId`, `userId`, and `numberOfSeats`.
 - **User**: Represents a user with properties like `id`, `name`, `phoneNumber`, `email`, and `ticket`.
-- **ErrorType**: Variant type representing different error scenarios.
+- **Message**: Variant type representing different error scenarios.
 
 ### Storage
 
@@ -32,11 +32,6 @@ This repository contains TypeScript code for a system designed to manage train o
 - **Get User**: Retrieves a user by their ID.
 - **Add Operator**: Adds a new operator to the system.
 - **Get Operator**: Retrieves an operator by their name.
-
-### Helper Functions
-
-- **Generate Correlation ID**: Generates a unique ID for tracking user progress.
-- **Verify Completion**: Checks if a lesson is completed based on user interactions.
 
 ### Dependencies
 
