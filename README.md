@@ -1,83 +1,57 @@
-# ICP Azle 201 Boilerplate
+# README.md
 
-ICP Azle 201 Boilerplate is a comprehensive project setup designed to streamline your development process. It provides a solid foundation with pre-configured components to help you get started quickly.
+## Overview
 
-## Features
+This repository contains TypeScript code for a system designed to manage train operations. It facilitates tasks such as adding and retrieving trains, creating tickets, managing operators, and handling user interactions related to train bookings. The system is built on the Internet Computer blockchain.
 
-- **React.js Setup:** The boilerplate comes with a well-structured React.js setup, making it easy to manage your frontend infrastructure.
-- **ICP Canister:** ICP Canister integration is included, offering a powerful way to manage data and interactions on the Internet Computer.
+## Structure
 
-**[Read the Getting Started Guide](link-to-your-tutorial)**
+### Data Structures
 
-## Things to be explained in the course:
-1. What is Ledger? More details here: https://internetcomputer.org/docs/current/developer-docs/integrations/ledger/
-2. What is Internet Identity? More details here: https://internetcomputer.org/internet-identity
-3. What is Principal, Identity, Address? https://internetcomputer.org/internet-identity | https://yumimarketplace.medium.com/whats-the-difference-between-principal-id-and-account-id-3c908afdc1f9
-4. Canister-to-canister communication and how multi-canister development is done? https://medium.com/icp-league/explore-backend-multi-canister-development-on-ic-680064b06320
+- **Train**: Represents a train with properties like `id`, `operator`, `name`, `image`, `depatureTime`, `arrivalTime`, `timeTaken`, `price`, `availableSeats`, and `bookedSeats`.
+- **Operator**: Represents an operator with properties such as `name`, `principal`, and `phoneNumber`.
+- **Ticket**: Represents a ticket with properties including `id`, `trainId`, `userId`, and `numberOfSeats`.
+- **User**: Represents a user with properties like `id`, `name`, `phoneNumber`, `email`, and `ticket`.
+- **ErrorType**: Variant type representing different error scenarios.
 
-## Getting started
+### Storage
 
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/dacadeorg/icp-azle-201)
+- `trainsStorage`: A `StableBTreeMap` to store trains by their IDs.
+- `ticketsStorage`: A `StableBTreeMap` to store tickets by their IDs.
+- `usersStorage`: A `StableBTreeMap` to store users by their IDs.
+- `operatorsStorage`: A `StableBTreeMap` to store operators by their IDs.
 
-If you rather want to use GitHub Codespaces, click this button instead:
+### Canister Functions
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/dacadeorg/icp-azle-201?quickstart=1)
+- **Add Train**: Adds a train to the system.
+- **Create Ticket**: Creates a ticket for a user to book a train.
+- **Get Trains**: Retrieves all trains from storage.
+- **Get Tickets**: Retrieves all tickets from storage.
+- **Get Ticket Info**: Retrieves detailed information about a ticket.
+- **Add User**: Adds a new user to the system.
+- **Get User**: Retrieves a user by their ID.
+- **Add Operator**: Adds a new operator to the system.
+- **Get Operator**: Retrieves an operator by their name.
 
-**NOTE**: After deploying your canisters in GitHub Codespaces, run `./canister_urls.py` and click the links that are shown there.
+### Helper Functions
 
-[![Open locally in Dev Containers](https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/dacadeorg/icp-azle-201)
+- **Generate Correlation ID**: Generates a unique ID for tracking user progress.
+- **Verify Completion**: Checks if a lesson is completed based on user interactions.
 
-## How to deploy canisters implemented in the course
+### Dependencies
 
-### Ledger canister
-`./deploy-local-ledger.sh` - deploys a local Ledger canister. IC works differently when run locally so there is no default network token available and you have to deploy it yourself. Remember that it's not a token like ERC-20 in Ethereum, it's a native token for ICP, just deployed separately.
-This canister is described in the `dfx.json`:
-```
-	"ledger_canister": {
-  	"type": "custom",
-  	"candid": "https://raw.githubusercontent.com/dfinity/ic/928caf66c35627efe407006230beee60ad38f090/rs/rosetta-api/icp_ledger/ledger.did",
-  	"wasm": "https://download.dfinity.systems/ic/928caf66c35627efe407006230beee60ad38f090/canisters/ledger-canister.wasm.gz",
-  	"remote": {
-    	"id": {
-      	"ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
-    	}
-  	}
-	}
-```
-`remote.id.ic` - that is the principal of the Ledger canister and it will be available by this principal when you work with the ledger.
+- Utilizes modules from the `"azle"` library for blockchain functionality.
+- Relies on IC APIs for blockchain interaction.
 
-Also, in the scope of this script, a minter identity is created which can be used for minting tokens
-for the testing purposes.
-Additionally, the default identity is pre-populated with 1000_000_000_000 e8s which is equal to 10_000 * 10**8 ICP.
-The decimals value for ICP is 10**8.
+### Miscellaneous
 
-List identities:
-`dfx identity list`
+- Uses `globalThis.crypto` for generating random values.
+- Implements custom correlation IDs for progress tracking.
 
-Switch to the minter identity:
-`dfx identity use minter`
+## Deployment
 
-Transfer ICP:
-`dfx ledger transfer <ADDRESS>  --memo 0 --icp 100 --fee 0`
-where:
-- `--memo` is some correlation id that can be set to identify some particular transactions (we use that in the marketplace canister).
-- `--icp` is the transfer amount
-- `--fee` is the transaction fee. In this case it's 0 because we make this transfer as the minter idenity thus this transaction is of type MINT, not TRANSFER.
-- `<ADDRESS>` is the address of the recipient. To get the address from the principal, you can use the helper function from the marketplace canister - `getAddressFromPrincipal(principal: Principal)`, it can be called via the Candid UI.
+### Backend Canister
+
+Run `dfx deploy backend` to deploy the backend canister containing the business logic.
 
 
-### Internet identity canister
-
-`dfx deploy internet_identity` - that is the canister that handles the authentication flow. Once it's deployed, the `js-agent` library will be talking to it to register identities. There is UI that acts as a wallet where you can select existing identities
-or create a new one.
-
-### Marketplace canister
-
-`dfx deploy dfinity_js_backend` - deploys the marketplace canister where the business logic is implemented.
-Basically, it implements functions like add, view, update, delete, and buy products + a set of helper functions.
-
-Do not forget to run `dfx generate dfinity_js_backend` anytime you add/remove functions in the canister or when you change the signatures.
-Otherwise, these changes won't be reflected in IDL's and won't work when called using the JS agent.
-
-### Marketplace frontend canister
-`dfx deploy dfinity_js_frontend` - deployes the frontend app for the `dfinity_js_backend` canister on IC.
