@@ -1,0 +1,15 @@
+service: () -> {
+    addOperator: (record {name:text; address:text; phoneNumber:text}) -> (variant {Ok:record {"principal":principal; name:text; phoneNumber:text}; Err:variant {PaymentFailed:text; InvalidPayload:text; NotFound:text; PaymentCompleted:text}});
+    addTrain: (record {arrivalTime:text; name:text; depatureTime:text; availableSeats:nat64; image:text; timeTaken:text; price:nat64}) -> (variant {Ok:record {id:text; arrivalTime:text; operator:record {"principal":principal; name:text; phoneNumber:text}; name:text; depatureTime:text; bookedSeats:nat64; availableSeats:nat64; image:text; timeTaken:text; price:nat64}; Err:variant {PaymentFailed:text; InvalidPayload:text; NotFound:text; PaymentCompleted:text}});
+    addUser: (record {name:text; email:text; phoneNumber:text}) -> (variant {Ok:record {id:text; ticket:vec text; name:text; email:text; phoneNumber:text}; Err:variant {PaymentFailed:text; InvalidPayload:text; NotFound:text; PaymentCompleted:text}});
+    cancelTicket: (record {userId:text; ticketId:text}) -> (variant {Ok:record {userId:text; ticketId:text}; Err:variant {PaymentFailed:text; InvalidPayload:text; NotFound:text; PaymentCompleted:text}});
+    createTicket: (record {userId:text; trainId:text; numberOfSeats:text}) -> (variant {Ok:record {id:text; userPhoneNumber:text; userName:text; arrivalTime:text; userId:text; depatureTime:text; trainId:text; timeTaken:text; price:nat64}; Err:variant {PaymentFailed:text; InvalidPayload:text; NotFound:text; PaymentCompleted:text}});
+    getOperator: (text) -> (variant {Ok:record {"principal":principal; name:text; phoneNumber:text}; Err:variant {PaymentFailed:text; InvalidPayload:text; NotFound:text; PaymentCompleted:text}}) query;
+    getOperators: () -> (vec record {"principal":principal; name:text; phoneNumber:text}) query;
+    getTicketInfo: (text) -> (variant {Ok:record {id:text; userPhoneNumber:text; userName:text; arrivalTime:text; userId:text; depatureTime:text; trainId:text; timeTaken:text; price:nat64}; Err:variant {PaymentFailed:text; InvalidPayload:text; NotFound:text; PaymentCompleted:text}}) query;
+    getTickets: () -> (vec record {id:text; userId:text; trainId:text; numberOfSeats:text}) query;
+    getTrain: (text) -> (variant {Ok:record {id:text; arrivalTime:text; operator:record {"principal":principal; name:text; phoneNumber:text}; name:text; depatureTime:text; bookedSeats:nat64; availableSeats:nat64; image:text; timeTaken:text; price:nat64}; Err:variant {PaymentFailed:text; InvalidPayload:text; NotFound:text; PaymentCompleted:text}}) query;
+    getTrains: () -> (vec record {id:text; arrivalTime:text; operator:record {"principal":principal; name:text; phoneNumber:text}; name:text; depatureTime:text; bookedSeats:nat64; availableSeats:nat64; image:text; timeTaken:text; price:nat64}) query;
+    getUser: (text) -> (opt record {id:text; ticket:vec text; name:text; email:text; phoneNumber:text}) query;
+    getUsers: () -> (vec record {id:text; ticket:vec text; name:text; email:text; phoneNumber:text}) query;
+}
