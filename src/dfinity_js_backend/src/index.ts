@@ -29,12 +29,12 @@ const Operator = Record({
 
 const Train = Record({
   id: text,
-  operator: Operator,
+  operatorName: text,
   name: text,
   image: text,
-  depatureTime: text,
+  departureTime: text,
   arrivalTime: text,
-  timeTaken: text,
+  travelDuration: text,
   price: nat64,
   availableSeats: nat64,
   bookedSeats: nat64,
@@ -42,17 +42,17 @@ const Train = Record({
 
 const TrainPayload = Record({
   name: text,
+  operatorName: text,
   image: text,
-  depatureTime: text,
+  departureTime: text,
   arrivalTime: text,
-  timeTaken: text,
+  travelDuration: text,
   price: nat64,
   availableSeats: nat64,
 });
 
 const OperatorPayload = Record({
   name: text,
-  address: text,
   phoneNumber: text,
 });
 
@@ -60,25 +60,27 @@ const Ticket = Record({
   id: text,
   trainId: text,
   userId: text,
-  numberOfSeats: text,
+  numberOfSeats: nat64,
 });
 
 const TicketPayload = Record({
   trainId: text,
   userId: text,
-  numberOfSeats: text,
+  numberOfSeats: nat64,
 });
 
 const TicketInfo = Record({
   id: text,
   trainId: text,
+  trainName: text,
   userId: text,
-  depatureTime: text,
-  arrivalTime: text,
-  timeTaken: text,
-  price: nat64,
   userName: text,
   userPhoneNumber: text,
+  departureTime: text,
+  arrivalTime: text,
+  travelDuration: text,
+  price: nat64,
+  numberOfSeats: nat64,
 });
 
 const User = Record({
@@ -86,7 +88,7 @@ const User = Record({
   name: text,
   phoneNumber: text,
   email: text,
-  ticket: Vec(text),
+  tickets: Vec(text),
 });
 
 const UserPayload = Record({
@@ -95,12 +97,7 @@ const UserPayload = Record({
   email: text,
 });
 
-const CancelTicket = Record({
-  ticketId: text,
-  userId: text,
-});
-
-const cancelTicketPayload = Record({
+const CancelTicketPayload = Record({
   ticketId: text,
   userId: text,
 });
@@ -112,74 +109,41 @@ const Message = Variant({
   PaymentCompleted: text,
 });
 
-/**
- * `loansStorage` - a key-value data structure used to store loans by borrowers.
- * {@link StableBTreeMap} is a self-balancing tree that acts as durable data storage across canister upgrades.
- * For this contract, `StableBTreeMap` is chosen for the following reasons:
- * - `insert`, `get`, and `remove` operations have constant time complexity (O(1)).
- * - Data stored in the map survives canister upgrades, unlike using HashMap where data is lost after an upgrade.
- *
- * Breakdown of the `StableBTreeMap(text, Loan)` data structure:
- * - The key of the map is an `loanId`.
- * - The value in this map is an loan (`Loan`) related to a given key (`loanId`).
- *
- * Constructor values:
- * 1) 0 - memory id where to i// get borrower with the same principal
-    const borrowerOpt = borrowersStorage.values().filter((borrower) => {
-      return borrower.principal.toText() === ic.caller().toText();
-    });
-
-    const borrower = borrowerOpt[0];nitialize a map.
- * 2) 16 - maximum size of the key in bytes.
- * 3) 1024 - maximum size of the value in bytes.
- * Values 2 and 3 are not used directly in the constructor but are utilized by the Azle compiler during compile time.
- */
-
 const trainsStorage = StableBTreeMap(0, text, Train);
 const ticketsStorage = StableBTreeMap(1, text, Ticket);
 const usersStorage = StableBTreeMap(2, text, User);
 const operatorsStorage = StableBTreeMap(3, text, Operator);
 
-// const PAYMENT_RESERVATION_PERIOD = 120n; // reservation period in seconds
-
-// const icpCanister = Ledger(Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai"));
-
 export default Canister({
   addTrain: update([TrainPayload], Result(Train, Message), (payload) => {
-  if (typeof payload !== "object" || Object.keys(payload).length === 0) {
-    return Err({ NotFound: "invalid payoad" });
-  }
+    if (typeof payload !== "object" || Object.keys(payload).length === 0) {
+      return Err({ NotFound: "invalid payload" });
+    }
 
-    const trainOpt = trainsStorage.get(payload.name);
-    if ("Some" in trainOpt) {
+    const operatorOpt = operatorsStorage.get(payload.operatorName);
+    if ("None" in operatorOpt) {
       return Err({
-        InvalidPayload: `Train with name ${payload.name} already exists`,
+        InvalidPayload: `Operator with name ${payload.operatorName} not found`,
       });
     }
 
-    const operatorOpt = operatorsStorage.values().filter((operator) => {
-      return operator.principal.toText() === ic.caller().toText();
-    });
-
-    const operator = operatorOpt[0];
-
-    const train = {
+    const train: Train = {
       id: uuidv4(),
-      operator: operator,
+      operatorName: payload.operatorName,
+      name: payload.name,
+      image: payload.image,
+      departureTime: payload.departureTime,
+      arrivalTime: payload.arrivalTime,
+      travelDuration: payload.travelDuration,
+      price: payload.price,
+      availableSeats: payload.availableSeats,
       bookedSeats: 0n,
-      ...payload,
     };
 
-    //add train to the storage
     trainsStorage.insert(train.id, train);
     return Ok(train);
   }),
 
-  getTrains: query([], Vec(Train), () => {
-    return trainsStorage.values();
-  }),
-
-  //getTrain
   getTrain: query([text], Result(Train, Message), (trainId) => {
     const trainOpt = trainsStorage.get(trainId);
     if ("None" in trainOpt) {
@@ -188,7 +152,10 @@ export default Canister({
     return Ok(trainOpt.Some);
   }),
 
-  //createTicket
+  getTrains: query([], Vec(Train), () => {
+    return trainsStorage.values();
+  }),
+
   createTicket: update(
     [TicketPayload],
     Result(TicketInfo, Message),
@@ -202,76 +169,67 @@ export default Canister({
       if ("None" in trainOpt) {
         return Err({ NotFound: `Train with id ${payload.trainId} not found` });
       }
+
       const train = trainOpt.Some;
       const user = userOpt.Some;
       const ticketId = uuidv4();
-      const ticket = {
+      const ticket: Ticket = {
         id: ticketId,
         userId: user.id,
         trainId: train.id,
         numberOfSeats: payload.numberOfSeats,
       };
 
-      const ticketInfo = {
+      const ticketInfo: TicketInfo = {
         id: ticketId,
         trainId: train.id,
+        trainName: train.name,
         userId: user.id,
-        depatureTime: train.depatureTime,
-        arrivalTime: train.arrivalTime,
-        timeTaken: train.timeTaken,
-        price: train.price,
         userName: user.name,
         userPhoneNumber: user.phoneNumber,
+        departureTime: train.departureTime,
+        arrivalTime: train.arrivalTime,
+        travelDuration: train.travelDuration,
+        price: train.price,
+        numberOfSeats: payload.numberOfSeats,
       };
 
-      //check if train has departed
       const currentTime = new Date().getTime();
-      const depatureTime = new Date(train.depatureTime).getTime();
-      if (currentTime > depatureTime) {
+      const departureTime = new Date(train.departureTime).getTime();
+      if (currentTime > departureTime) {
         return Err({
           InvalidPayload: `Train with id ${train.id} has already departed`,
         });
       }
 
-      //check if the user has already booked a ticket for the same train
-      if (user.ticket.includes(ticketId)) {
+      if (user.tickets.includes(ticketId)) {
         return Err({
           InvalidPayload: `User with id ${user.id} already booked a ticket for train ${train.id}`,
         });
       }
 
-      //check if there are available seats
-      if (train.availableSeats <= train.bookedSeats) {
+      if (train.availableSeats < payload.numberOfSeats) {
         return Err({
-          InvalidPayload: `No available seats for train ${train.id}`,
+          InvalidPayload: `Insufficient seats available for train ${train.id}`,
         });
       }
 
-      //update train booked seats 
-      train.bookedSeats += BigInt(payload.numberOfSeats);
-
-      //update no of available seats
-      train.availableSeats -= BigInt(payload.numberOfSeats);
-
-      //update train in storage
+      train.bookedSeats += payload.numberOfSeats;
+      train.availableSeats -= payload.numberOfSeats;
       trainsStorage.insert(train.id, train);
 
-      //insert ticket into storage
       ticketsStorage.insert(ticket.id, ticket);
-
-      //insert ticket into users storage
-      user.ticket.push(ticket.id);
+      user.tickets.push(ticket.id);
       usersStorage.insert(user.id, user);
 
       return Ok(ticketInfo);
     }
   ),
-  //getTickets
+
   getTickets: query([], Vec(Ticket), () => {
     return ticketsStorage.values();
   }),
 
-  //getTicketInfo
   getTicketInfo: query([text], Result(TicketInfo, Message), (ticketId) => {
     const ticketOpt = ticketsStorage.get(ticketId);
     if ("None" in ticketOpt) {
@@ -291,62 +249,57 @@ export default Canister({
     }
     const user = userOpt.Some;
 
-    const ticketInfo = {
+    const ticketInfo: TicketInfo = {
       id: ticket.id,
       trainId: train.id,
+      trainName: train.name,
       userId: user.id,
-      depatureTime: train.depatureTime,
-      arrivalTime: train.arrivalTime,
-      timeTaken: train.timeTaken,
-      price: train.price,
       userName: user.name,
       userPhoneNumber: user.phoneNumber,
+      departureTime: train.departureTime,
+      arrivalTime: train.arrivalTime,
+      travelDuration: train.travelDuration,
+      price: train.price,
+      numberOfSeats: ticket.numberOfSeats,
     };
 
     return Ok(ticketInfo);
   }),
 
-
-  //addUser
   addUser: update([UserPayload], Result(User, Message), (payload) => {
     if (typeof payload !== "object" || Object.keys(payload).length === 0) {
-      return Err({ NotFound: "invalid payoad" });
+      return Err({ NotFound: "invalid payload" });
     }
 
-    const user = {
+    const user: User = {
       id: uuidv4(),
-      ticket: [],
+      tickets: [],
       ...payload,
     };
-    //insert into storage
+
     usersStorage.insert(user.id, user);
     return Ok(user);
   }),
 
-  //getUser
   getUser: query([text], Opt(User), (userId) => {
     return usersStorage.get(userId);
   }),
 
-  //getUsers
   getUsers: query([], Vec(User), () => {
     return usersStorage.values();
   }),
 
-  //addOperator
   addOperator: update([OperatorPayload], Result(Operator, Message), (payload) => {
-
-
-    const operator = {
+    const operator: Operator = {
+      name: payload.name,
       principal: ic.caller(),
-      ...payload,
+      phoneNumber: payload.phoneNumber,
     };
 
     operatorsStorage.insert(operator.name, operator);
     return Ok(operator);
   }),
 
-  //getOperator
   getOperator: query([text], Result(Operator, Message), (operatorName) => {
     const operatorOpt = operatorsStorage.get(operatorName);
     if ("None" in operatorOpt) {
@@ -355,15 +308,13 @@ export default Canister({
     return Ok(operatorOpt.Some);
   }),
 
-  //getOperators
   getOperators: query([], Vec(Operator), () => {
     return operatorsStorage.values();
   }),
 
-  //cancelTicket
   cancelTicket: update(
-    [cancelTicketPayload],
-    Result(CancelTicket, Message),
+    [CancelTicketPayload],
+    Result(CancelTicketPayload, Message),
     (payload) => {
       const ticketOpt = ticketsStorage.get(payload.ticketId);
       if ("None" in ticketOpt) {
@@ -383,30 +334,19 @@ export default Canister({
       }
       const train = trainOpt.Some;
 
+      train.bookedSeats -= ticket.numberOfSeats;
+      train.availableSeats += ticket.numberOfSeats;
+      trainsStorage.insert(train.id, train);
 
-      //update train booked seats 
-      train.bookedSeats -= BigInt(ticket.numberOfSeats);
-
-      //update no of available seats
-      train.availableSeats += BigInt(ticket.numberOfSeats);
-
-      //update train in storage
-      //trainsStorage.insert(train.id, train);
-
-  //remove ticket from user
-      user.ticket = user.ticket.filter((ticketId: any) => ticketId !== ticket.id);
+      user.tickets = user.tickets.filter((id) => id !== ticket.id);
       usersStorage.insert(user.id, user);
 
-      //remove ticket from storage
       ticketsStorage.remove(ticket.id);
 
-      return Ok({ ticketId: ticket.id, userId: user.id });
+      return Ok(payload);
     }
   ),
-  
-
 });
-
 
 // a workaround to make uuid package work with Azle
 globalThis.crypto = {
