@@ -10,10 +10,7 @@ import {
   Err,
   ic,
   Opt,
-  None,
-  Some,
   Principal,
-  Duration,
   nat64,
   Result,
   Canister,
@@ -31,7 +28,7 @@ const Train = Record({
   id: text,
   operator: Operator,
   name: text,
-  image: text,
+  destination: text,
   depatureTime: text,
   arrivalTime: text,
   timeTaken: text,
@@ -42,7 +39,7 @@ const Train = Record({
 
 const TrainPayload = Record({
   name: text,
-  image: text,
+  destination: text,
   depatureTime: text,
   arrivalTime: text,
   timeTaken: text,
@@ -66,7 +63,7 @@ const Ticket = Record({
 const TicketPayload = Record({
   trainId: text,
   userId: text,
-  numberOfSeats: text,
+  numberOfSeats: nat64,
 });
 
 const TicketInfo = Record({
@@ -112,43 +109,16 @@ const Message = Variant({
   PaymentCompleted: text,
 });
 
-/**
- * `loansStorage` - a key-value data structure used to store loans by borrowers.
- * {@link StableBTreeMap} is a self-balancing tree that acts as durable data storage across canister upgrades.
- * For this contract, `StableBTreeMap` is chosen for the following reasons:
- * - `insert`, `get`, and `remove` operations have constant time complexity (O(1)).
- * - Data stored in the map survives canister upgrades, unlike using HashMap where data is lost after an upgrade.
- *
- * Breakdown of the `StableBTreeMap(text, Loan)` data structure:
- * - The key of the map is an `loanId`.
- * - The value in this map is an loan (`Loan`) related to a given key (`loanId`).
- *
- * Constructor values:
- * 1) 0 - memory id where to i// get borrower with the same principal
-    const borrowerOpt = borrowersStorage.values().filter((borrower) => {
-      return borrower.principal.toText() === ic.caller().toText();
-    });
-
-    const borrower = borrowerOpt[0];nitialize a map.
- * 2) 16 - maximum size of the key in bytes.
- * 3) 1024 - maximum size of the value in bytes.
- * Values 2 and 3 are not used directly in the constructor but are utilized by the Azle compiler during compile time.
- */
-
 const trainsStorage = StableBTreeMap(0, text, Train);
 const ticketsStorage = StableBTreeMap(1, text, Ticket);
 const usersStorage = StableBTreeMap(2, text, User);
 const operatorsStorage = StableBTreeMap(3, text, Operator);
 
-// const PAYMENT_RESERVATION_PERIOD = 120n; // reservation period in seconds
-
-// const icpCanister = Ledger(Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai"));
-
 export default Canister({
   addTrain: update([TrainPayload], Result(Train, Message), (payload) => {
-  if (typeof payload !== "object" || Object.keys(payload).length === 0) {
-    return Err({ NotFound: "invalid payoad" });
-  }
+    if (typeof payload !== "object" || Object.keys(payload).length === 0) {
+      return Err({ NotFound: "invalid payoad" });
+    }
 
     const trainOpt = trainsStorage.get(payload.name);
     if ("Some" in trainOpt) {
@@ -170,7 +140,6 @@ export default Canister({
       ...payload,
     };
 
-    //add train to the storage
     trainsStorage.insert(train.id, train);
     return Ok(train);
   }),
@@ -224,48 +193,33 @@ export default Canister({
         userPhoneNumber: user.phoneNumber,
       };
 
-      //check if train has departed
-      const currentTime = new Date().getTime();
-      const depatureTime = new Date(train.depatureTime).getTime();
-      if (currentTime > depatureTime) {
-        return Err({
-          InvalidPayload: `Train with id ${train.id} has already departed`,
-        });
-      }
-
-      //check if the user has already booked a ticket for the same train
       if (user.ticket.includes(ticketId)) {
         return Err({
           InvalidPayload: `User with id ${user.id} already booked a ticket for train ${train.id}`,
         });
       }
 
-      //check if there are available seats
       if (train.availableSeats <= train.bookedSeats) {
         return Err({
           InvalidPayload: `No available seats for train ${train.id}`,
         });
       }
 
-      //update train booked seats 
       train.bookedSeats += BigInt(payload.numberOfSeats);
 
-      //update no of available seats
       train.availableSeats -= BigInt(payload.numberOfSeats);
 
-      //update train in storage
       trainsStorage.insert(train.id, train);
 
-      //insert ticket into storage
       ticketsStorage.insert(ticket.id, ticket);
 
-      //insert ticket into users storage
       user.ticket.push(ticket.id);
       usersStorage.insert(user.id, user);
 
       return Ok(ticketInfo);
     }
   ),
+
   //getTickets
   getTickets: query([], Vec(Ticket), () => {
     return ticketsStorage.values();
@@ -306,60 +260,6 @@ export default Canister({
     return Ok(ticketInfo);
   }),
 
-
-  //addUser
-  addUser: update([UserPayload], Result(User, Message), (payload) => {
-    if (typeof payload !== "object" || Object.keys(payload).length === 0) {
-      return Err({ NotFound: "invalid payoad" });
-    }
-
-    const user = {
-      id: uuidv4(),
-      ticket: [],
-      ...payload,
-    };
-    //insert into storage
-    usersStorage.insert(user.id, user);
-    return Ok(user);
-  }),
-
-  //getUser
-  getUser: query([text], Opt(User), (userId) => {
-    return usersStorage.get(userId);
-  }),
-
-  //getUsers
-  getUsers: query([], Vec(User), () => {
-    return usersStorage.values();
-  }),
-
-  //addOperator
-  addOperator: update([OperatorPayload], Result(Operator, Message), (payload) => {
-
-
-    const operator = {
-      principal: ic.caller(),
-      ...payload,
-    };
-
-    operatorsStorage.insert(operator.name, operator);
-    return Ok(operator);
-  }),
-
-  //getOperator
-  getOperator: query([text], Result(Operator, Message), (operatorName) => {
-    const operatorOpt = operatorsStorage.get(operatorName);
-    if ("None" in operatorOpt) {
-      return Err({ NotFound: `Operator with name ${operatorName} not found` });
-    }
-    return Ok(operatorOpt.Some);
-  }),
-
-  //getOperators
-  getOperators: query([], Vec(Operator), () => {
-    return operatorsStorage.values();
-  }),
-
   //cancelTicket
   cancelTicket: update(
     [cancelTicketPayload],
@@ -367,7 +267,9 @@ export default Canister({
     (payload) => {
       const ticketOpt = ticketsStorage.get(payload.ticketId);
       if ("None" in ticketOpt) {
-        return Err({ NotFound: `Ticket with id ${payload.ticketId} not found` });
+        return Err({
+          NotFound: `Ticket with id ${payload.ticketId} not found`,
+        });
       }
       const ticket = ticketOpt.Some;
 
@@ -383,30 +285,77 @@ export default Canister({
       }
       const train = trainOpt.Some;
 
-
-      //update train booked seats 
       train.bookedSeats -= BigInt(ticket.numberOfSeats);
 
-      //update no of available seats
       train.availableSeats += BigInt(ticket.numberOfSeats);
 
-      //update train in storage
-      //trainsStorage.insert(train.id, train);
-
-  //remove ticket from user
-      user.ticket = user.ticket.filter((ticketId: any) => ticketId !== ticket.id);
+      user.ticket = user.ticket.filter(
+        (ticketId: any) => ticketId !== ticket.id
+      );
       usersStorage.insert(user.id, user);
 
-      //remove ticket from storage
       ticketsStorage.remove(ticket.id);
 
       return Ok({ ticketId: ticket.id, userId: user.id });
     }
   ),
-  
 
+  //addUser
+  addUser: update([UserPayload], Result(User, Message), (payload) => {
+    if (typeof payload !== "object" || Object.keys(payload).length === 0) {
+      return Err({ NotFound: "invalid payoad" });
+    }
+
+    const user = {
+      id: uuidv4(),
+      ticket: [],
+      ...payload,
+    };
+
+    usersStorage.insert(user.id, user);
+    return Ok(user);
+  }),
+
+  //getUser
+  getUser: query([text], Opt(User), (userId) => {
+    return usersStorage.get(userId);
+  }),
+
+  //getUsers
+  getUsers: query([], Vec(User), () => {
+    return usersStorage.values();
+  }),
+
+  //addOperator
+  addOperator: update(
+    [OperatorPayload],
+    Result(Operator, Message),
+    (payload) => {
+      const operator = {
+        principal: ic.caller(),
+        name: payload.name,
+        phoneNumber: payload.phoneNumber,
+      };
+
+      operatorsStorage.insert(operator.name, operator);
+      return Ok(operator);
+    }
+  ),
+
+  //getOperator
+  getOperator: query([text], Result(Operator, Message), (operatorName) => {
+    const operatorOpt = operatorsStorage.get(operatorName);
+    if ("None" in operatorOpt) {
+      return Err({ NotFound: `Operator with name ${operatorName} not found` });
+    }
+    return Ok(operatorOpt.Some);
+  }),
+
+  //getOperators
+  getOperators: query([], Vec(Operator), () => {
+    return operatorsStorage.values();
+  }),
 });
-
 
 // a workaround to make uuid package work with Azle
 globalThis.crypto = {
